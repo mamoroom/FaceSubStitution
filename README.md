@@ -1,7 +1,7 @@
 installation:
  -----------------
 
- •sudo vim /etc/apache2/httpd.conf
+ ★sudo vim /etc/apache2/httpd.conf
 
   ===========
 
@@ -13,7 +13,7 @@ installation:
 
   ※***はインストールdir名
 
- •cd patch && sudo sh httpd_patch.sh
+ ★cd patch && sudo sh httpd_patch.sh
 
    permissionを許可する
 
