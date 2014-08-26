@@ -1,0 +1,393 @@
+<!vdoctype html>
+<html lang="en">
+	<title>Face substitution</title>
+	<head>
+		<script src="/lib/clmtrackr/js/dat.gui.min.js"></script>
+		<script src="/lib/clmtrackr/js/utils.js"></script>
+		<script src="/lib/clmtrackr/js/clmtrackr.js"></script>
+		<!--script src="../models/model_pca_20_svm.js"></script-->
+		<script src="/lib/clmtrackr/models/model_spca_20_svm.js"></script>
+		<script src="/lib/clmtrackr/js/Stats.js"></script>
+		<script src="/lib/clmtrackr/js/face_deformer.js"></script>
+		<script src="/lib/clmtrackr/js/jquery.min.js"></script>
+		<script src="/lib/clmtrackr/examples/js/poisson_new.js"></script>
+		<!--script src="/js/face_substitution.js"></script-->
+	</head>
+	<style>
+		body {
+			font-family: 'Lato';
+			background-color: #f0f0f0;
+			margin: 0px auto;
+			max-width: 1150px;
+		}
+		#overlay, #webgl {
+			position: absolute;
+			top: 0px;
+			left: 0px;
+			-o-transform : scaleX(-1);
+			-webkit-transform : scaleX(-1);
+			transform : scaleX(-1);
+			-ms-filter : fliph; /*IE*/
+			filter : fliph; /*IE*/
+
+			width : 600px;
+			height : 450px;
+		}
+
+		#videoel {
+			-o-transform : scaleX(-1);
+			-webkit-transform : scaleX(-1);
+			transform : scaleX(-1);
+			-ms-filter : fliph; /*IE*/
+			filter : fliph; /*IE*/
+
+			width : 600px;
+			height : 450px;
+		}
+
+		#container {
+			position : relative;
+			width : 370px;
+		}
+		#content {
+			margin-top : 50px;
+			margin-left : auto;
+			margin-right : auto;
+			max-width: 600px;
+		}
+		.masks {
+			display: none;
+		}
+		.btn {
+			font-family: 'Lato';
+			font-size: 16px;
+		}
+		#webgl2 {
+			display : none;
+		}
+
+		#controls {
+			text-align : center;
+		}
+	</style>
+	<body>
+		<div id="content">
+			<div id="container">
+				<video id="videoel" width="400" height="300" preload="auto">
+				</video>
+				<canvas id="overlay" width="400" height="300"></canvas>
+				<canvas id="webgl" width="400" height="300"></canvas>
+			</div>
+			<div id="controls">
+				<input class="btn" type="button" value="wait, loading video & images" disabled="disabled" onclick="startVideo()" id="startbutton"></input>
+			</div>
+			<canvas id="webgl2" width="400" height="300"></canvas>
+			<img id="monalisa" class="masks" src="/media/joconde_crop.jpg"></img>
+			<script>
+				var vid = document.getElementById('videoel');
+				var overlay = document.getElementById('overlay');
+				var overlayCC = overlay.getContext('2d');	
+				
+				/*********** Setup of video/webcam and checking for webGL support *********/
+
+				var videoReady = false;
+				var imagesReady = false;
+				
+				function enablestart() {
+					if (videoReady && imagesReady) {
+						var startbutton = document.getElementById('startbutton');
+						startbutton.value = "start";
+						startbutton.disabled = null;
+					}
+				}
+
+				$(window).load(function() {
+    				imagesReady = true;
+    				enablestart();
+				});
+				
+				var insertAltVideo = function(video) {
+					if (supports_video()) {
+						if (supports_ogg_theora_video()) {
+							//video.src = "../media/cap13_edit2.ogv";
+							//video.src = "../media/cap12_edit.ogv";
+							video.src = "./_clmtrackr/media/1.mp4";
+						} else if (supports_h264_baseline_video()) {
+							video.src = "../media/cap13_edit2.mp4";
+						} else {
+							return false;
+						}
+						//video.play();
+						return true;
+					} else return false;
+				}
+
+				// check whether browser supports webGL
+				var webGLContext;
+				var webGLTestCanvas = document.createElement('canvas');
+				if (window.WebGLRenderingContext) {
+					webGLContext = webGLTestCanvas.getContext('webgl') || webGLTestCanvas.getContext('experimental-webgl');
+					if (!webGLContext || !webGLContext.getExtension('OES_texture_float')) {
+						webGLContext = null;
+					}
+				}
+				if (webGLContext == null) {
+					alert("Your browser does not seem to support WebGL. Unfortunately this face mask example depends on WebGL, so you'll have to try it in another browser. :(");
+				}
+				
+				navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+				window.URL = window.URL || window.webkitURL || window.msURL || window.mozURL;
+				
+				// check for camerasupport
+				if (navigator.getUserMedia) {
+					// set up stream
+					
+					// chrome 19 shim
+					var videoSelector = {video : true};
+					if (window.navigator.appVersion.match(/Chrome\/(.*?) /)) {
+						var chromeVersion = parseInt(window.navigator.appVersion.match(/Chrome\/(\d+)\./)[1], 10);
+						if (chromeVersion < 20) {
+							videoSelector = "video";
+						}
+					};
+					
+					navigator.getUserMedia(videoSelector, function( stream ) {
+						if (vid.mozCaptureStream) {
+							vid.mozSrcObject = stream;
+						} else {
+							vid.src = (window.URL && window.URL.createObjectURL(stream)) || stream;
+						}
+						vid.play();
+					}, function() {
+						insertAltVideo(vid);
+						alert("There was some problem trying to fetch video from your webcam, using a fallback video instead.");
+					});
+				} else {
+					insertAltVideo(vid);
+					alert("Your browser does not seem to support getUserMedia, using a fallback video instead.");
+				}
+
+				vid.addEventListener('canplay', function() {videoReady = true;enablestart();}, false);
+
+				/*********** Code for face substitution *********/
+				
+				var animationRequest;
+				var positions;
+
+				var ctrack = new clm.tracker();
+				ctrack.init(pModel);
+
+				function startVideo() {
+					// start video
+					vid.play();
+					// start tracking
+					ctrack.start(vid);
+					// start drawing face grid
+					drawGridLoop();
+				}
+
+				var fd = new faceDeformer();
+				fd.init(document.getElementById('webgl'));
+				var wc1 = document.getElementById('webgl').getContext('webgl') || document.getElementById('webgl').getContext('experimental-webgl')
+				wc1.clearColor(0,0,0,0);
+
+				var fd2 = new faceDeformer();
+				fd2.init(document.getElementById('webgl2'));
+				var wc2 = document.getElementById('webgl2').getContext('webgl') || document.getElementById('webgl2').getContext('experimental-webgl')
+				wc2.clearColor(0,0,0,0);
+				var mask = {
+					"monalisa" : [[21.539778613571002, 52.843788988728249], [21.30390975615768, 83.302233189555977], [26.193573294663452, 114.35387895079327], [33.713954352167377, 143.15573844972926], [48.157124973567761, 166.98090240157057], [67.641939741413239, 187.09850232246515], [77.133435876412534, 196.36636012092117], [91.98589850664348, 199.49456958745145], [111.87519225850986, 196.53764992548162], [137.97232156668036, 189.79752653535775], [176.61286401088506, 171.50434543677886], [203.74322775690695, 142.02599538106227], [219.77440099078314, 108.71915538180275], [223.27759332415951, 70.224119840661501], [221.74514645738424, 45.204926829063027], [170.26964981149064, 23.837055025056486], [145.13712322351404, 20.0], [116.92175039938184, 18.258227338970613], [97.273435613850779, 30.048346359260734], [22.762490392814925, 34.008738851528051], [35.886077213728242, 27.0], [58.903367725863291, 26.0], [71.696536019219309, 32.203693146398479], [36.57998031880885, 52.779718566314955], [53.953459306751995, 44.216413703340322], [70.75345517431316, 52.451616524265091], [51.663136137968706, 56.36486568494297], [56.63327656416925, 50.02399260975119], [153.27491865673994, 47.895434696675409], [135.22403819342355, 41.835842816957268], [112.98660716766716, 51.531195401816717], [133.25469629277825, 53.995153369412776], [137.61394659073221, 47.643327423184189], [83.0, 51.0], [69.737945399362161, 99.757722929817021], [64.852131167360142, 112.67975493041121], [68.150737076897315, 119.49940769140733], [80.204731591906352, 125.87953636258146], [105.12317959249509, 122.54252162681382], [113.37839466290973, 114.67172527740343], [107.7986254362873, 97.551951798767789], [81.0, 80.0], [69.756744873013361, 116.32005216616164], [98.0322275619273, 117.28199170077062], [62.875143926336932, 144.03469795323042], [71.689261179819141, 140.91320569661593], [76.732039918708722, 139.45780089974846], [82.855831651040489, 141.56649844038935], [91.184232315061251, 139.74737597014604], [106.00603891713007, 140.25605273754718], [122.88222498993025, 142.36607174274792], [112.30505361714199, 152.45834288106249], [98.57616688568919, 156.8848818975423], [83.820014199000752, 157.10518323651632], [75.361906367460449, 156.71759346010083], [67.617149756063043, 151.56250078178363], [73.498856629406305, 146.17442547934229], [83.640659992846395, 147.73460503451736], [105.24803537963362, 147.68311332012382], [104.57542347435162, 147.53621455839362], [84.325579467524449, 147.67345155068153], [73.225375667881906, 145.9222277142419], [79.49642775725988, 113.63122813643895], [43.266309016571256, 46.998908993330446], [64.353645535131875, 46.83485523505226], [62.707535291980378, 54.409785609479741], [43.620326080711664, 56.573683367978902], [145.2498028902113, 42.866393256838194], [123.10477962337723, 45.18427292360775], [123.62079313091925, 53.764489759734829], [145.76553123073842, 52.446469912373288]]
+				};
+				var maskname = Object.keys(mask)[0];
+
+				// canvas for copying the warped face to
+				var newcanvas = document.createElement('CANVAS');
+				newcanvas.width = vid.width;
+				newcanvas.height = vid.height;
+				// canvas for copying videoframes to
+				var videocanvas = document.createElement('CANVAS');
+				videocanvas.width = vid.width;
+				videocanvas.height = vid.height;
+				// canvas for masking
+				var maskcanvas = document.createElement('CANVAS');
+				maskcanvas.width = vid.width;
+				maskcanvas.height = vid.height;	
+				// create canvases for all the faces
+				var imagecanvas = document.createElement('CANVAS');
+				$("#monalisa").load(function(obj) {
+					// copy the images to canvases
+					imagecanvas.width = obj.target.width;
+					imagecanvas.height = obj.target.height;
+					imagecanvas.getContext('2d').drawImage(obj.target,0,0);
+				});
+				var extended_vertices = [
+				  [0,71,72,0],
+				  [0,72,1,0],
+				  [1,72,73,1],
+				  [1,73,2,1],
+				  [2,73,74,2],
+				  [2,74,3,2],
+				  [3,74,75,3],
+				  [3,75,4,3],
+				  [4,75,76,4],
+				  [4,76,5,4],
+				  [5,76,77,5],
+				  [5,77,6,5],
+				  [6,77,78,6],
+				  [6,78,7,6],
+				  [7,78,79,7],
+				  [7,79,8,7],
+				  [8,79,80,8],
+				  [8,80,9,8],
+				  [9,80,81,9],
+				  [9,81,10,9],
+				  [10,81,82,10],
+				  [10,82,11,10],
+				  [11,82,83,11],
+				  [11,83,12,11],
+				  [12,83,84,12],
+				  [12,84,13,12],
+				  [13,84,85,13],
+				  [13,85,14,13],
+				  [14,85,86,14],
+				  [14,86,15,14],
+				  [15,86,87,15],
+				  [15,87,16,15],
+				  [16,87,88,16],
+				  [16,88,17,16],
+				  [17,88,89,17],
+				  [17,89,18,17],
+				  [18,89,90,18],
+				  [18,90,22,18],
+				  [22,90,21,22],
+				  [21,90,91,21],
+				  [21,20,91,21],
+				  [20,91,92,20],
+				  [20,92,19,20],
+				  [19,92,93,19],
+				  [19,93,71,19],
+				  [19,0,71,19],
+				  [44,61,56,44],
+				  [60,61,56,60],
+				  [60,56,57,60],
+				  [60,59,57,60],
+				  [58,59,57,58],
+				  [58,59,50,58]
+				];
+
+				function drawGridLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition(vid);
+
+					overlayCC.clearRect(0, 0, 500, 375);
+					if (positions) {
+						// draw current grid
+						ctrack.draw(overlay);
+					}
+					// check whether mask has converged
+					var pn = ctrack.getConvergence();
+					if (pn < 0.4) {
+						switchMasks(positions);
+					} else {
+						requestAnimFrame(drawGridLoop);
+					}
+				}
+				function switchMasks(pos) {
+					videocanvas.getContext('2d').drawImage(vid,0,0,videocanvas.width,videocanvas.height);
+					
+					// we need to extend the positions with new estimated points in order to get pixels immediately outside mask
+					var newMaskPos = mask[maskname].slice(0);
+					var newFacePos = pos.slice(0);
+					var extInd = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,22,21,20,19];
+					var newp;
+					for (var i = 0;i < 23;i++) {
+						newp = [];
+						newp[0] = (newMaskPos[extInd[i]][0]*1.3) - (newMaskPos[62][0]*0.3);// short for ((newMaskPos[extInd[i]][0]-newMaskPos[62][0])*1.1)+newMaskPos[62][0]
+						newp[1] = (newMaskPos[extInd[i]][1]*1.3) - (newMaskPos[62][1]*0.3);
+						newMaskPos.push(newp);
+						newp = [];
+						newp[0] = (newFacePos[extInd[i]][0]*1.3) - (newFacePos[62][0]*0.3);
+						newp[1] = (newFacePos[extInd[i]][1]*1.3) - (newFacePos[62][1]*0.3);
+						newFacePos.push(newp);
+					}
+					// also need to make new vertices incorporating area outside mask
+					var newVertices = pModel.path.vertices.concat(extended_vertices);
+
+					// deform the mask we want to use to face form
+					fd2.load(imagecanvas, newMaskPos, pModel, newVertices);
+					fd2.draw(newFacePos);
+					// and copy onto new canvas
+					newcanvas.getContext('2d').drawImage(document.getElementById('webgl2'),0,0);
+
+					// create masking
+					var tempcoords = positions.slice(0,18);
+					tempcoords.push(positions[21]);
+					tempcoords.push(positions[20]);
+					tempcoords.push(positions[19]);
+					createMasking(maskcanvas, tempcoords);
+
+					/*document.body.appendChild(newcanvas);
+					document.body.appendChild(videocanvas);
+					document.body.appendChild(maskcanvas);
+					debugger;*/
+
+					// do poisson blending
+					Poisson.load(newcanvas, videocanvas, maskcanvas, function() {
+						var result = Poisson.blend(30, 0, 0);
+						// render to canvas
+						newcanvas.getContext('2d').putImageData(result, 0, 0);
+						// get mask
+
+						fd.load(newcanvas, pos, pModel);
+						requestAnimFrame(drawMaskLoop);
+					});
+				}
+				
+				function drawMaskLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition();
+					
+					/*for (var i = 0;i < positions.length;i++) {
+						positions[i][1] += 1;
+					}*/
+
+					overlayCC.clearRect(0, 0, 400, 300);
+					if (positions) {
+						// draw mask on top of face
+						fd.draw(positions);
+					}
+					animationRequest = requestAnimFrame(drawMaskLoop);
+				}
+
+				function createMasking(canvas, modelpoints) {
+					// fill canvas with black
+					var cc = canvas.getContext('2d');
+					cc.fillStyle="#000000";
+					cc.fillRect(0,0,canvas.width, canvas.height);
+					cc.beginPath();
+					cc.moveTo(modelpoints[0][0], modelpoints[0][1]);
+					for (var i = 1;i < modelpoints.length;i++) {
+						cc.lineTo(modelpoints[i][0], modelpoints[i][1]);
+					}
+					cc.lineTo(modelpoints[0][0], modelpoints[0][1]);
+					cc.closePath();
+					cc.fillStyle="#ffffff";
+					cc.fill();
+				}
+				
+				/*********** Code for stats **********/
+
+				stats = new Stats();
+				stats.domElement.style.position = 'absolute';
+				stats.domElement.style.top = '0px';
+				document.getElementById('container').appendChild( stats.domElement );
+
+				document.addEventListener("clmtrackrIteration", function(event) {
+					stats.update();
+				}, false);
+
+
+			</script>
+		</div>
+	</body>
+</html>

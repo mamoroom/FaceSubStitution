@@ -1032,6 +1032,14 @@ var clm = {
 					// if no face found, stop.
 					return false;
 				}
+				/*
+				console.log(det);
+				if ( 40 < det.width && det.width < 50 && 40 < det.height && det.height < 50) {
+				} else {
+					return false;
+				}
+				*/
+				
 			}
 			
 			if (model.hints && mosseFilter && left_eye_filter && right_eye_filter && nose_filter) {
@@ -1320,7 +1328,7 @@ var clm = {
 		})();
 		
 		var cancelRequestAnimFrame = (function() {
-			return window.cancelCancelRequestAnimationFrame ||
+			return window.cancelAnimationFrame ||
 				window.webkitCancelRequestAnimationFrame ||
 				window.mozCancelRequestAnimationFrame ||
 				window.oCancelRequestAnimationFrame ||

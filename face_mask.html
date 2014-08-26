@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<title>Face mask</title>
+		<meta charset="utf-8">
+		<style>
+			@import url(https://fonts.googleapis.com/css?family=Lato:300italic,700italic,300,700);
+
+			body {
+				font-family: 'Lato';
+				background-color: #f0f0f0;
+				margin: 0px auto;
+				max-width: 1150px;
+			}
+
+			h2 {
+				font-weight : 400;
+			}
+			
+			
+			#overlay, #webgl {
+				position: absolute;
+				top: 0px;
+				left: 0px;
+				/*
+				-o-transform : scaleX(-1);
+				-webkit-transform : scaleX(-1);
+				transform : scaleX(-1);
+				*/
+				-ms-filter : fliph; /*IE*/
+				filter : fliph; /*IE*/
+			}
+
+			#videoel {
+				/*
+				-o-transform : scaleX(-1);
+				-webkit-transform : scaleX(-1);
+				transform : scaleX(-1);
+				*/
+				-ms-filter : fliph; /*IE*/
+				filter : fliph; /*IE*/
+			}
+
+			#container {
+				position : relative;
+				width : 600px;
+				/*margin : 0px auto;*/
+			}
+			
+			#content {
+				margin-top : 70px;
+				/*
+				margin-left : 100px;
+				margin-right : 100px;
+				*/
+				max-width: 950px;
+			}
+			 
+			#sketch {
+				display: none;
+			}
+			
+			#filter {
+				display: none;
+			}
+
+
+			.masks {
+				display: none;
+			}
+
+			.nogum {
+						display : none;
+			}
+			
+			.btn {
+						font-family: 'Lato';
+						font-size: 16px;
+			}
+
+			.hide {
+				display : none;
+			}
+
+			.nohide {
+				display : block;
+			}
+		</style>
+	</head>
+	<body>
+		<script src="/lib/clmtrackr/js/dat.gui.min.js"></script>
+		<script src="/lib/clmtrackr/js/utils.js"></script>
+		<!--script src="/lib/clmtrackr/js/numeric-1.2.6.min.js"></script-->
+		<script src="./js/numeric-1.2.6.js"></script>
+		<script src="/lib/clmtrackr/js/mosse.js"></script>
+		<script src="/lib/clmtrackr/js/jsfeat-min.js"></script>
+		<script src="/lib/clmtrackr/js/frontalface.js"></script>
+		<script src="/lib/clmtrackr/js/jsfeat_detect.js"></script>
+		<script src="/lib/clmtrackr/js/left_eye_filter.js"></script>
+		<script src="/lib/clmtrackr/js/right_eye_filter.js"></script>
+		<script src="/lib/clmtrackr/js/nose_filter.js"></script>
+		<script src="/lib/clmtrackr/models/model_pca_20_svm.js"></script>
+		<!--script src="/lib/clmtrackr/js/clm.js"></script-->
+		<script src="./_clmtrackr/js/clm.js"></script>
+		<script src="/lib/clmtrackr/js/svmfilter_webgl.js"></script>
+		<script src="/lib/clmtrackr/js/svmfilter_fft.js"></script>
+		<script src="/lib/clmtrackr/js/mossefilter.js"></script>
+		<!--script src="/lib/clmtrackr/js/Stats.js"></script-->
+		<script src="/lib/clmtrackr/js/face_deformer.js"></script>
+		<script src="/lib/clmtrackr/js/jquery.min.js"></script>
+		<div id="content">
+			<h2>Face mask</h2>
+			<input class="btn" type="button" value="load" onclick="loadVideo()"></input>
+			<input class="btn" type="button" value="wait, loading vide" disabled="disabled "onclick="startVideo()" id="startbutton"></input>
+			<input class="btn" type="button" value="puase" onclick="pauseVideo()"></input>
+			<input class="btn" type="button" value="reset" onclick="resetVideo()"></input>
+			<select name="v_src" id="select_v_src">
+				<option value="1">1.ogv</option>
+				<option value="2">2.ogv</option>
+				<option value="3">3.ogv</option>
+				<option value="4">4.mp4</option>
+			</select>
+			</select>
+			<div id="container">
+				<video id="videoel" width="650" height="400" preload="auto">
+				</video>
+				<canvas id="overlay" width="650" height="400"></canvas>
+				<canvas id="webgl" width="650" height="400"></canvas>
+			</div>
+			<br/>
+			<img id="monalisa" class="masks" src="/lib/clmtrackr/media/joconde.jpg"></img>
+			<script>
+				//======================================
+				// variable
+				//======================================
+
+				var vid = document.getElementById('videoel');
+				var overlay = document.getElementById('overlay');
+				var webgl = document.getElementById('webgl');
+				var overlayCC = overlay.getContext('2d');
+
+				//======================================
+				// initialize
+				//======================================
+				var ctrack = new clm.tracker();
+
+				//unEnablestart();
+				
+				//======================================
+				// check whether browser supports webGL
+				//======================================
+				var webGLContext;
+				var webGLTestCanvas = document.createElement('canvas');
+				if (window.WebGLRenderingContext) {
+					webGLContext = webGLTestCanvas.getContext('webgl') || webGLTestCanvas.getContext('experimental-webgl');
+					if (!webGLContext || !webGLContext.getExtension('OES_texture_float')) {
+						webGLContext = null;
+					}
+				}
+				if (webGLContext == null) {
+					alert("Your browser does not seem to support WebGL. Unfortunately this face mask example depends on WebGL, so you'll have to try it in another browser. :(");
+				}
+				window.URL = window.URL || window.webkitURL || window.msURL || window.mozURL;
+				
+				//======================================
+				// main
+				//======================================
+				var is_stop = false;
+				var is_play = false;
+				var src_get_timmer;
+
+				vid.addEventListener('canplay', enablestart, false);
+				vid.addEventListener('ended', resetVideo, false);
+
+
+				function enablestart() {
+					var startbutton = document.getElementById('startbutton');
+					startbutton.value = "start";
+					startbutton.disabled = null;
+					vid.classList.remove("hide");
+					//vid.classList.add("nohide");
+					srcGetTimmerOff();
+					startVideo();
+				}
+
+				function unEnablestart() {
+					var startbutton = document.getElementById('startbutton');
+					startbutton.value = "wait, loading video";
+					startbutton.disabled = "disabled";
+					vid.classList.remove("nohide");
+					vid.classList.add("hide");
+					srcGetTimmerOn();
+				}
+
+				function srcGetTimmerOn() {
+					src_get_timmer = setInterval(insertAltVideo, 1000);
+				}
+
+				function srcGetTimmerOff() {
+					clearInterval(src_get_timmer);
+				}
+
+				function insertAltVideo() {
+					/*
+					if (supports_video()) {
+						if (supports_ogg_theora_video()) {
+							//video.src = "/_clmtrackr/media/_cap12_edit.ogv";
+							//video.src = "/_clmtrackr/media/cap12_edit.ogv";
+							//video.src = "/_clmtrackr/media/nanodance.mp4";
+							//video.src = "/_clmtrackr/media/2.mp4";
+							//video.src = "/_clmtrackr/media/3.ogv";
+							video.src = "/media/2.ogv";
+						} else if (supports_h264_baseline_video()) {
+							video.src = "./media/cap13_edit2.mp4";
+						} else {
+							return false;
+						}
+						//video.play();
+						return true;
+					} else return false;
+					*/
+					var select_src = document.getElementById('select_v_src');
+					var file_index = select_src.options.item(select_src.selectedIndex).value;
+					if (file_index == 4) {
+						vid.src = "/media/" + file_index + ".mp4";
+					} else {
+						vid.src = "/media/" + file_index + ".ogv";
+					}
+				}
+
+				function loadVideo() {
+					insertAltVideo();
+					//vid.load();
+				}
+
+				function startVideo() {
+					ctrack.reset();
+					ctrack.init(pModel);
+					is_stop = false;
+					is_play = true;
+
+					// start video
+					vid.play();
+					startTracking();
+				}
+
+				function startTracking() {
+					// start tracking
+					//ctrack.start(vid, [200,50,15,15]);
+					ctrack.start(vid);
+					// start drawing face grid
+					drawGridLoop();
+				}
+
+				function resetVideo() {
+					is_stop = true;
+					is_play = false;
+
+					ctrack.stop();
+					fd.clear();
+					//ctrack.reset();
+					//ctrack.init(pModel);
+					//startTracking();
+					unEnablestart();
+				}
+
+				function pauseVideo() {
+					is_stop = true;
+					is_play = false;
+
+					ctrack.stop();
+					vid.pause();
+				}
+
+				/*
+				document.getElementById('selectmask').addEventListener('change', updateMask, false);
+				function updateMask(el) {
+					currentMask = parseInt(el.target.value, 10);
+					switchMasks();
+				}
+				*/
+
+				var positions;
+				var fd = new faceDeformer();
+				fd.init(webgl);
+
+				var masks = {
+					"monalisa" : [[266.539778613571,254.84378898872825],[266.3039097561577,285.302233189556],[271.19357329466345,316.3538789507933],[278.7139543521674,345.15573844972926],[293.15712497356776,368.9809024015706],[312.64193974141324,389.09850232246515],[322.13343587641253,398.3663601209212],[336.9858985066435,401.49456958745145],[356.87519225850986,398.5376499254816],[382.97232156668036,391.79752653535775],[421.61286401088506,373.50434543677886],[448.74322775690695,344.0259953810623],[464.77440099078314,310.71915538180275],[468.2775933241595,272.2241198406615],[466.74514645738424,247.20492682906303],[415.26964981149064,225.8370550250565],[390.13712322351404,222],[361.92175039938184,220.2582273389706],[342.2734356138508,232.04834635926073],[267.7624903928149,236.00873885152805],[280.88607721372824,229],[303.9033677258633,228],[316.6965360192193,234.20369314639848],[281.57998031880885,254.77971856631495],[298.953459306752,246.21641370334032],[315.75345517431316,254.4516165242651],[296.6631361379687,258.36486568494297],[301.63327656416925,252.0239926097512],[398.27491865673994,249.8954346966754],[380.22403819342355,243.83584281695727],[357.98660716766716,253.53119540181672],[378.25469629277825,255.99515336941278],[382.6139465907322,249.6433274231842],[328,253],[314.73794539936216,301.757722929817],[309.85213116736014,314.6797549304112],[313.1507370768973,321.4994076914073],[325.20473159190635,327.87953636258146],[350.1231795924951,324.5425216268138],[358.3783946629097,316.6717252774034],[352.7986254362873,299.5519517987678],[326,282],[314.75674487301336,318.32005216616164],[343.0322275619273,319.2819917007706],[307.87514392633693,346.0346979532304],[316.68926117981914,342.91320569661593],[321.7320399187087,341.45780089974846],[327.8558316510405,343.56649844038935],[336.18423231506125,341.74737597014604],[351.00603891713007,342.2560527375472],[367.88222498993025,344.3660717427479],[357.305053617142,354.4583428810625],[343.5761668856892,358.8848818975423],[328.82001419900075,359.1051832365163],[320.36190636746045,358.71759346010083],[312.61714975606304,353.5625007817836],[318.4988566294063,348.1744254793423],[328.6406599928464,349.73460503451736],[350.2480353796336,349.6831133201238],[349.5754234743516,349.5362145583936],[329.32557946752445,349.67345155068153],[318.2253756678819,347.9222277142419],[324.4964277572599,315.63122813643895],[288.26630901657126,248.99890899333045],[309.3536455351319,248.83485523505226],[307.7075352919804,256.40978560947974],[288.62032608071166,258.5736833679789],[390.2498028902113,244.8663932568382],[368.1047796233772,247.18427292360775],[368.62079313091925,255.76448975973483],[390.7655312307384,254.4464699123733]]
+				};
+				var currentMask = 0;
+
+				function drawGridLoop() {
+					overlayCC.clearRect(0, 0, 650, 400);
+					if (!is_stop) {
+						// get position of face
+						positions = ctrack.getCurrentPosition(vid);
+						if (positions) {
+							// draw current grid
+							//ctrack.draw(overlay);
+						}
+						// check whether mask has converged
+						var pn = ctrack.getConvergence();
+						//if (pn < 0.4) {
+						if (pn < 50) {
+							switchMasks();
+							requestAnimFrame(drawMaskLoop);
+						} else {
+							requestAnimFrame(drawGridLoop);
+						}
+					}
+				}
+
+				function switchMasks() {
+					// get mask
+					var maskname = Object.keys(masks)[currentMask];
+					fd.load(document.getElementById(maskname), masks[maskname], pModel);
+				}
+
+				var is_mask_loop_lock=false;
+				var track_width;
+				var center_pos;
+				function drawMaskLoop() {
+					// get position of face
+					positions = ctrack.getCurrentPosition();
+					//console.log(positions);
+					overlayCC.clearRect(0, 0, 650, 400);
+					if (positions) {
+						// draw mask on top of face
+						is_mask_loop_lock=true;
+						fd.draw(positions);
+						track_width = positions[12][0] - positions[2][0];
+						center_pos = positions[62];
+						//console.log(track_width);
+					}
+
+					if ( (!positions ||
+							(track_width < 30 || 60 < track_width ||
+								center_pos[0] < 150 || center_pos[0] > 450 ||
+									70 < center_pos[1])) && is_mask_loop_lock) {
+						fd.clear();
+						requestAnimFrame(drawGridLoop);
+					} else {
+						requestAnimFrame(drawMaskLoop);
+					}
+				}
+					
+			</script>
+		</div>
+	</body>
+</html>
