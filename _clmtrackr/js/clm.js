@@ -531,7 +531,12 @@ var clm = {
 				}
 				var paramUpdateLeft = numeric.add(prior, jtj);
 				var paramUpdateRight = numeric.sub(priorP, jtv);
-				var paramUpdate = numeric.dot(numeric.inv(paramUpdateLeft), paramUpdateRight);
+				var inv_paramUpdateLeft = numeric.inv(paramUpdateLeft);
+				if (inv_paramUpdateLeft == null) {
+					break;
+				}
+				var paramUpdate = numeric.dot(inv_paramUpdateLeft, paramUpdateRight);
+
 				//var paramUpdate = numeric.solve(paramUpdateLeft, paramUpdateRight, true);
 				
 				var oldPositions = currentPositions;
@@ -1026,6 +1031,7 @@ var clm = {
 			var translateX, translateY, scaling, rotation;
 			if (box) {
 				candidate = {x : box[0], y : box[1], width : box[2], height : box[3]};
+				//console.log(candidate);
 			} else {
 				var det = detectPosition(element);
 				if (!det) {
@@ -1033,7 +1039,6 @@ var clm = {
 					return false;
 				}
 				/*
-				console.log(det);
 				if ( 40 < det.width && det.width < 50 && 40 < det.height && det.height < 50) {
 				} else {
 					return false;

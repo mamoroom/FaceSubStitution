@@ -1,7 +1,8 @@
 
-//var count=0;
+var count=0;
 function wadax(){
 var retval;
+/*
 $.ajax({
 		url: '/getImg.php',
         type: 'POST',
@@ -22,17 +23,12 @@ $.ajax({
 			"imgPath": retval[0],
 			"positions": retval[1]
 		}
-		for (var i=0; i< jsonRet.positions.length; i++ ){
-			for(var j=0; j< jsonRet.positions[i].length; j++ ){
-				jsonRet.positions[i][j] = Number(jsonRet.positions[i][j]);
-			}
-		}
 	}else{
 		var jsonRet = {}
 	}
+
 	return jsonRet;
-}
-	/*
+*/
 count++;
 if (count%2 == 1) {
 return {
@@ -43,5 +39,3 @@ return {
 	return {};
 }
 }
-*/
-

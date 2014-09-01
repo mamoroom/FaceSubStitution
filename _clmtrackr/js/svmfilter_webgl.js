@@ -1027,7 +1027,7 @@ var webglFilter = function() {
     var dist = max-min;
     
     if (dist == 0) {
-      console.log("a patchresponse was monotone, causing normalization to fail. Leaving it unchanged.")
+     // console.trace("a patchresponse was monotone, causing normalization to fail. Leaving it unchanged.")
       response = response.map(function() {return 1});
     } else {
       for (var i = 0;i < msize;i++) {

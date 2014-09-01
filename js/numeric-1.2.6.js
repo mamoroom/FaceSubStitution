@@ -803,6 +803,9 @@ numeric.inv = function inv(x) {
         for(i=j;i!==m;++i) { k = abs(A[i][j]); if(k>v0) { i0 = i; v0 = k; } }
         Aj = A[i0]; A[i0] = A[j]; A[j] = Aj;
         Ij = I[i0]; I[i0] = I[j]; I[j] = Ij;
+		if (Aj == null || !Aj instanceof Array || Aj.length < j+1 || isNaN(Aj[j])) {
+			return null;
+		}
         x = Aj[j];
         for(k=j;k!==n;++k)    Aj[k] /= x; 
         for(k=n-1;k!==-1;--k) Ij[k] /= x;

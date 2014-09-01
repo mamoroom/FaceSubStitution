@@ -102,7 +102,7 @@
 		<script src="/lib/clmtrackr/models/model_pca_20_svm.js"></script>
 		<!--script src="/lib/clmtrackr/js/clm.js"></script-->
 		<script src="./_clmtrackr/js/clm.js"></script>
-		<script src="/lib/clmtrackr/js/svmfilter_webgl.js"></script>
+		<script src="./_clmtrackr/js/svmfilter_webgl.js"></script>
 		<script src="/lib/clmtrackr/js/svmfilter_fft.js"></script>
 		<script src="/lib/clmtrackr/js/mossefilter.js"></script>
 		<!--script src="/lib/clmtrackr/js/Stats.js"></script-->
@@ -122,7 +122,7 @@
 			</select-->
 			<div id="container">
 				<!--video id="videoel" width="650" height="400"-->
-				<video id="videoel" width="650" height="400" src="/media/1.ogv">
+				<video id="videoel" width="650" height="400" src="/media/2.ogv">
 				</video>
 				<canvas id="overlay" width="650" height="400"></canvas>
 				<canvas id="webgl" width="650" height="400"></canvas>
@@ -190,8 +190,15 @@
 						startVideo();
 					} else {
 						is_init = true;
-						loadAsset();
-						enablestart();
+						var is_loaded = false;
+						var loader = setInterval(function() {
+							if (!is_loaded) {
+								is_loaded = loadAsset();
+							} else {
+								clearInterval(loader);
+								enablestart();
+							}
+						}, 2000);
 					}
 				}
 
@@ -215,10 +222,12 @@
 					mask_data = wadax();
 
 					if (Object.keys(mask_data).length === 0) {
+						return false;
 					} else {
 						maskImg.src=mask_data.imgPath;
 						// video
 						vid.currentTime = 0;
+						return true;
 					}
 				}
 
@@ -234,6 +243,7 @@
 				}
 
 				function startTracking() {
+					//ctrack.start(vid, [315,25,50,50]);
 					ctrack.start(vid);
 					drawGridLoop();
 				}
@@ -266,8 +276,9 @@
 						}
 						// check whether mask has converged
 						var pn = ctrack.getConvergence();
+						//console.log(pn);
 						//if (pn < 0.4) {
-						if (pn < 50) {
+						if (pn < 500) {
 							switchMasks();
 							requestAnimFrame(drawMaskLoop);
 						} else {
@@ -297,6 +308,7 @@
 						//console.log(track_width);
 					}
 
+					/*
 					if ( (!positions ||
 							(track_width < 30 || 60 < track_width ||
 								center_pos[0] < 150 || center_pos[0] > 450 ||
@@ -304,8 +316,9 @@
 						fd.clear();
 						requestAnimFrame(drawGridLoop);
 					} else {
+					*/
 						requestAnimFrame(drawMaskLoop);
-					}
+					//}
 				}
 			</script>
 		</div>

@@ -4,8 +4,8 @@ $imageData = $_POST['image'];
 $positions = $_POST['positions'];
 
 $idx = getFilenameIndex();
-$filename = './images/photo'.$idx.'.bmp';
-$saveFilename = '/images/photo'.$idx.'.bmp';
+$filename = './images/photo'.$idx.'.jpg';
+$saveFilename = '/images/photo'.$idx.'.jpg';
 $fp = fopen($filename, 'w');
 fwrite($fp,base64_decode($imageData));
 fclose($fp);

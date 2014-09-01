@@ -33,10 +33,8 @@
 
 			#container, #webglcontainer {
 				position : relative;
-				/*width : 370px;
-				height : 346px;*/
-				width : 700px;
-				height : 500px;
+				width : 370px;
+				height : 346px;
 				/*margin : 0px auto;*/
 			}
 			
@@ -112,17 +110,17 @@
 		<div id="content">
 			<h2>Face deformation</h2>
 			<div id="container" class="nohide">
-				<video id="videoel" width="640" height="478" preload="auto"></video>
-				<canvas id="canvasel" width="640" height="478" class="hide"></canvas>
-				<canvas id="overlay" width="640" height="478"></canvas>
+				<video id="videoel" width="370" height="288" preload="auto"></video>
+				<canvas id="canvasel" width="370" height="288" class="hide"></canvas>
+				<canvas id="overlay" width="370" height="288"></canvas>
 			</div>
 			<div id="webglcontainer" class="hide">
-				<canvas id="webgl" width="640" height="478"></canvas>
+				<canvas id="webgl" width="306" height="342"></canvas>
 			</div>
 			<div id="snap-area">
 			</div>
 			<div id="hidden-area">
-				<canvas id="tmp-canvas" width="640" height="478"></canvas>
+				<canvas id="tmp-canvas" width="370" height="288"></canvas>
 			</div>
 			<br/>
 			<div id="buttons">
@@ -156,7 +154,6 @@
 			<!--a href="https://github.com/auduno/clmtrackr"><img style="position: absolute; top: 0; left: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_left_green_007200.png" alt="Fork me on GitHub"></a-->
 			<p id='gUMMessage'></p>
 			<script>
-				var captured;
 				var vid = document.getElementById('videoel');
 				var overlay = document.getElementById('overlay');
 				var overlayCC = overlay.getContext('2d');
@@ -199,7 +196,7 @@
 					var cc = canvas.getContext('2d');
 					var img = new Image();
 					img.onload = function() {
-						cc.drawImage(img, 0, 0, 640, 478);
+						cc.drawImage(img, 0, 0, 370, 288);
 					};
 					img.src = './lib/clmtrackr/media/franck_02221.jpg';  
 					vid.className = "hide";
@@ -268,7 +265,6 @@
 
 				//window.setTimeout(startVideo,2000);
 
-				startVideo();
 				function startVideo() {
 					// start video
 					vid.play();
@@ -334,14 +330,13 @@
 					var imageCanvas = document.getElementById("tmp-canvas");
 					var ctx = imageCanvas.getContext("2d");
 					ctx.drawImage(vid, 0, 0);
-					captured = new Image();
+					var captured = new Image();
 					captured.src = imageCanvas.toDataURL('image/png');
-					/*
 					captured.onload = function() {
 						var snap = document.getElementById("snap-area");
 						snap.appendChild(captured);
+
 					}
-					*/
 
 					// hide video
 					var elem = document.getElementById('container');
@@ -437,20 +432,17 @@
 					fd.clear();
 					if (ph.draw_face) fd.draw(positions);
 					if (ph.draw_grid) fd.drawGrid(positions);
+					console.log('ffclufa');
 
-					//added by t.wada
 						jQuery(function($) {
 
 						    // body部パラメーター
 						    var data = {};
 						    // Canvasのデータをbase64でエンコードした文字列を取得
-						    var canvasData = $('#webgl').get(0).toDataURL("image/jpeg");
+						    var canvasData = $('#webgl').get(0).toDataURL();
 						    // 不要な情報を取り除く
-						    canvasData = canvasData.replace(/^data:image\/jpeg;base64,/, '');
-							//var imgSrc = captured.src;
-						    //imgSrc = imgSrc.replace(/^data:image\/png;base64,/, '');
+						    canvasData = canvasData.replace(/^data:image\/png;base64,/, '');
 
-						    //data.image = canvasData;
 						    data.image = canvasData;
 							data.positions = positions;
 	
@@ -461,6 +453,8 @@
 						            // 成功時の処理
 					    	    },
 					        	error: function(xhr, status, err)  {
+									console.log(xhr);
+									console.log(err);
 						            // 失敗時の処理
 						        },
 						        data: data,
